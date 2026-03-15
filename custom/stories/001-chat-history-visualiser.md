@@ -190,6 +190,20 @@ Each phase should have a headed Playwright e2e test that launches VS Code Inside
 |------|-----------|
 | **NEW** `test/e2e/chat-visualiser-e2e.ts` | Headed Playwright test — launches VS Code, verifies panel rendering. Adapted from backup branch's `test/e2e/nuum-compaction-panel-e2e.ts`. |
 
+### Utility: Model Selector Command
+
+Lifted from backup branch — a command palette command `Chat: Select Model` (`github.copilot.chat.selectModel`) that shows a quick pick of available Copilot models and switches to the selected one via `workbench.action.chat.changeModel`. Useful for e2e tests and general development.
+
+- [x] Add command to `package.json`
+- [x] Add implementation to `conversationFeature.ts`
+
+## Devlog
+
+### 2026-03-15 — Setup
+
+- Created project brief in `AGENTS.md`, story template, and initial story plan.
+- Lifted `selectModel` command from backup branch — allows programmatic model selection for e2e tests and general use.
+
 ## Checklist
 
 - [ ] Compiles without errors

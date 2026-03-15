@@ -281,6 +281,28 @@ export class ConversationFeature implements IExtensionContribution {
 				const uri = URI.joinPath(this.extensionContext.globalStorageUri, 'copilotUserPreferences.md');
 				return vscode.commands.executeCommand('vscode.open', uri);
 			}),
+			vscode.commands.registerCommand('github.copilot.chat.selectModel', async () => {
+				const models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
+				if (!models.length) {
+					vscode.window.showWarningMessage('No Copilot chat models available.');
+					return;
+				}
+				const items = models.map(m => ({
+					label: m.name || m.id,
+					description: m.family,
+					model: m,
+				}));
+				const picked = await vscode.window.showQuickPick(items, {
+					placeHolder: 'Select a chat model',
+				});
+				if (picked) {
+					await vscode.commands.executeCommand('workbench.action.chat.changeModel', {
+						vendor: picked.model.vendor,
+						id: picked.model.id,
+						family: picked.model.family,
+					});
+				}
+			}),
 			this.instantiationService.invokeFunction(startFeedbackCollection),
 			registerLinkCommands(this.telemetryService),
 			this.linkifyService.registerGlobalLinkifier({

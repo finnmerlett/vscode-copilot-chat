@@ -2353,6 +2353,12 @@
 				"enablement": "config.github.copilot.chat.enableUserPreferences"
 			},
 			{
+				"command": "github.copilot.chat.selectModel",
+				"title": "Select Model",
+				"enablement": "!github.copilot.interactiveSession.disabled",
+				"category": "Chat"
+			},
+			{
 				"command": "github.copilot.chat.review.markUnhelpful",
 				"title": "%github.copilot.command.unhelpfulReviewSuggestion%",
 				"icon": "$(thumbsdown)",
