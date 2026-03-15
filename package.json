@@ -2412,6 +2412,17 @@
 				"category": "Developer"
 			},
 			{
+				"command": "github.copilot.debug.showChatVisualiser",
+				"title": "%github.copilot.command.showChatVisualiser%",
+				"category": "Developer"
+			},
+			{
+				"command": "github.copilot.debug.refreshChatVisualiser",
+				"title": "Refresh Chat Visualiser",
+				"icon": "$(refresh)",
+				"category": "Developer"
+			},
+			{
 				"command": "github.copilot.debug.validateNesRename",
 				"title": "%github.copilot.command.validateNesRename%",
 				"category": "Developer"
@@ -4813,6 +4824,10 @@
 					"when": "false"
 				},
 				{
+					"command": "github.copilot.debug.refreshChatVisualiser",
+					"when": "false"
+				},
+				{
 					"command": "github.copilot.debug.extensionState",
 					"when": "false"
 				},
@@ -5150,6 +5165,11 @@
 					"command": "github.copilot.debug.showChatLogView",
 					"when": "view == workbench.panel.chat.view.copilot",
 					"group": "3_show"
+				},
+				{
+					"command": "github.copilot.debug.refreshChatVisualiser",
+					"when": "view == copilot-chat-visualiser",
+					"group": "navigation"
 				}
 			],
 			"view/item/context": [
@@ -5614,6 +5634,12 @@
 					"id": "copilot-chat",
 					"name": "Chat Debug",
 					"icon": "assets/debug-icon.svg",
+					"when": "github.copilot.chat.showLogView"
+				},
+				{
+					"id": "copilot-chat-visualiser",
+					"name": "Chat Visualiser",
+					"type": "webview",
 					"when": "github.copilot.chat.showLogView"
 				}
 			],

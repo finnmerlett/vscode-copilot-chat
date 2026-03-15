@@ -33,6 +33,7 @@ import { FixTestFailureContribution } from '../../intents/vscode-node/fixTestFai
 import { ExtensionStateCommandContribution } from '../../log/vscode-node/extensionStateCommand';
 import { FetcherTelemetryContribution, LoggingActionsContrib } from '../../log/vscode-node/loggingActions';
 import { RequestLogTree } from '../../log/vscode-node/requestLogTree';
+import { ChatVisualiserContribution } from '../../log/vscode-node/chatVisualiserPanel';
 import { McpSetupCommands } from '../../mcp/vscode-node/commands';
 import { NotebookFollowCommands } from '../../notebook/vscode-node/followActions';
 import { CopilotDebugCommandContribution } from '../../onboardDebug/vscode-node/copilotDebugCommandContribution';
@@ -114,6 +115,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(ConfigurationMigrationContribution),
 	asContributionFactory(RequestLogTree),
+	asContributionFactory(ChatVisualiserContribution),
 	asContributionFactory(OnboardTerminalTestsContribution),
 	asContributionFactory(ToolsContribution),
 	asContributionFactory(RemoteAgentContribution),

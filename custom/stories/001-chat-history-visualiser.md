@@ -86,11 +86,11 @@ The context window status hover uses `computePromptTokenDetails()` from `src/pla
 
 ### Phase 1: Scaffold & User View
 
-- [ ] Add view + command declarations to `package.json` and `package.nls.json`
-- [ ] Create `chatVisualiserPanel.ts` with WebviewViewProvider
-- [ ] Register contribution in `contributions.ts`
-- [ ] Render User View column from `IConversationStore.lastConversation`
-- [ ] Style with VS Code theme variables (using backup branch's CSS as reference)
+- [x] Add view + command declarations to `package.json` and `package.nls.json`
+- [x] Create `chatVisualiserPanel.ts` with WebviewViewProvider
+- [x] Register contribution in `contributions.ts`
+- [x] Render User View column from `IConversationStore.lastConversation`
+- [x] Style with VS Code theme variables (using backup branch's CSS as reference)
 - [ ] Auto-refresh on conversation change
 
 #### Key Files for Phase 1
@@ -203,6 +203,17 @@ Lifted from backup branch — a command palette command `Chat: Select Model` (`g
 
 - Created project brief in `AGENTS.md`, story template, and initial story plan.
 - Lifted `selectModel` command from backup branch — allows programmatic model selection for e2e tests and general use.
+
+### 2026-03-16 — Phase 1 scaffold
+
+- Added `copilot-chat-visualiser` webview view to the `copilot-chat` view container, gated on `github.copilot.chat.showLogView`.
+- Created `chatVisualiserPanel.ts` with `ChatVisualiserContribution` + `ChatVisualiserViewProvider`.
+- Renders User View column from `IConversationStore.lastConversation` → `Turn[]`, showing request messages, tool call rounds, and responses.
+- Each message block has hover metadata and click-to-open-in-editor-tab.
+- CSS uses VS Code theme variables for consistent styling.
+- API View column is placeholder ("Coming in Phase 2").
+- **Discovery:** `IToolCall` has `name`, `arguments`, `id` — not `input`/`result` as assumed. Tool results are in `round.response`.
+- **Note:** `IConversationStore` has no change event — currently using manual refresh + visibility change. Will need a better auto-refresh mechanism.
 
 ## Checklist
 
