@@ -135,9 +135,65 @@ The context window status hover uses `computePromptTokenDetails()` from `src/pla
 | `src/extension/log/vscode-node/chatVisualiserPanel.ts` | Extend with webview message handling: `postMessage` for hover/click, `vscode.window.createWebviewPanel` for dedicated tab. |
 | [`src/extension/log/vscode-node/requestLogTree.ts`](../../src/extension/log/vscode-node/requestLogTree.ts) | Reference for how existing debug views open content in editor tabs (uses `showHtmlCommand`). |
 
+### E2E Testing (runs headed after each phase)
+
+Each phase should have a headed Playwright e2e test that launches VS Code Insiders, verifies the panel works via text assertions (no screenshots), and checks expected content appears. Run after each phase to validate.
+
+**Setup (from backup branch pattern):**
+- Uses Playwright's Electron support (`_electron.launch`)
+- Launches VS Code Insiders with `--extensionDevelopmentPath` pointing to our extension
+- Copies auth state from real user data dir to temp dir
+- Disables settings sync, updates, telemetry, startup editor
+- Test user data dir is ephemeral (`/tmp/visualiser-e2e-{timestamp}`)
+- Workspace folder: `/Users/finnmerlett/Repos/mortgage-calculator-app`
+
+**Test scenario:**
+1. Start a new chat (ensure fresh conversation)
+2. Select model provider **4o**
+3. Send message: `"Read the full contents of src/utils, and give me a summary of what each file does"`
+4. Wait for response to complete
+5. Open the Chat Visualiser sidebar
+6. Verify expected text appears in the panel (textual assertions, not screenshots)
+
+**Key settings for test launch:**
+```json
+{
+  "workbench.startupEditor": "none",
+  "update.mode": "none",
+  "extensions.autoUpdate": false,
+  "telemetry.telemetryLevel": "off",
+  "settingsSync.enabled": false
+}
+```
+
+**Launch args:**
+```
+--extensionDevelopmentPath=<repo root>
+--user-data-dir=<temp dir>
+--log=debug
+--disable-gpu-sandbox
+--no-sandbox
+--disable-updates
+--skip-release-notes
+--disable-workspace-trust
+--sync=off
+```
+
+- [ ] Create `test/e2e/chat-visualiser-e2e.ts` with Playwright Electron setup
+- [ ] Phase 1 test: panel appears in sidebar, shows "no active conversation" state
+- [ ] Phase 2 test: send a message, verify both columns populate with expected text
+- [ ] Phase 3 test: click a message block, verify editor tab opens with content
+
+#### Key Files
+
+| File | Why / How |
+|------|-----------|
+| **NEW** `test/e2e/chat-visualiser-e2e.ts` | Headed Playwright test — launches VS Code, verifies panel rendering. Adapted from backup branch's `test/e2e/nuum-compaction-panel-e2e.ts`. |
+
 ## Checklist
 
 - [ ] Compiles without errors
+- [ ] E2E test passes for each phase
 - [ ] Tested manually — sidebar shows data
 - [ ] Tested manually — dedicated tab opens
 - [ ] Token counts match context window hover
@@ -157,3 +213,4 @@ The context window status hover uses `computePromptTokenDetails()` from `src/pla
 - Confirmed `onDidBuildPrompt` event already exists on `ToolCallingLoop` (line 181)
 - Existing view container `copilot-chat` in package.json — will add our view there
 - Token detail computation uses `computePromptTokenDetails()` on same `Raw.ChatMessage[]`
+- Added e2e testing plan — headed Playwright tests using Electron support, adapted from backup branch pattern
