@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
+import { getTextPart, roleToString } from '../../../platform/chat/common/globalStringUtils';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IRequestLogger, LoggedInfoKind } from '../../../platform/requestLogger/node/requestLogger';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IExtensionContribution } from '../../common/contributions';
@@ -38,6 +41,7 @@ class ChatVisualiserViewProvider extends Disposable implements vscode.WebviewVie
 
 	constructor(
 		@IConversationStore private readonly conversationStore: IConversationStore,
+		@IRequestLogger private readonly requestLogger: IRequestLogger,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -75,7 +79,25 @@ class ChatVisualiserViewProvider extends Disposable implements vscode.WebviewVie
 			return;
 		}
 
-		this.webviewView.webview.html = renderConversation(conversation);
+		// Gather the latest API messages from the request logger
+		const apiMessages = this.getLatestApiMessages();
+
+		this.webviewView.webview.html = renderConversation(conversation, apiMessages);
+	}
+
+	private getLatestApiMessages(): Raw.ChatMessage[] {
+		const requests = this.requestLogger.getRequests();
+		// Find the last request that has messages (skip MarkdownContentRequest entries)
+		for (let i = requests.length - 1; i >= 0; i--) {
+			const req = requests[i];
+			if (req.kind === LoggedInfoKind.Request) {
+				const entry = req.entry;
+				if ('chatParams' in entry && entry.chatParams?.messages?.length) {
+					return entry.chatParams.messages;
+				}
+			}
+		}
+		return [];
 	}
 
 	private async openContentTab(title: string, content: string): Promise<void> {
@@ -86,7 +108,7 @@ class ChatVisualiserViewProvider extends Disposable implements vscode.WebviewVie
 
 // --- Rendering ---
 
-function renderConversation(conversation: Conversation): string {
+function renderConversation(conversation: Conversation, apiMessages: Raw.ChatMessage[]): string {
 	const turns = conversation.turns;
 	const sessionIdShort = conversation.sessionId.slice(0, 12);
 
@@ -112,14 +134,16 @@ function renderConversation(conversation: Conversation): string {
 	</div>
 </div>
 
-<!-- Column 2: API View (Phase 2) -->
+<!-- Column 2: API View -->
 <div class="column">
 	<div class="column-header">
 		<h3>API View</h3>
-		<div class="token-badge">Coming in Phase 2</div>
+		<div class="token-badge">${apiMessages.length} messages</div>
 	</div>
 	<div class="items">
-		<div class="empty">Subscribe to onDidBuildPrompt to capture API messages</div>
+	${apiMessages.length > 0
+			? apiMessages.map((msg, i) => renderApiMessage(msg, i)).join('\n')
+			: '<div class="empty">No API messages captured yet — send a message first</div>'}
 	</div>
 </div>
 
@@ -174,13 +198,13 @@ function renderTurn(turn: Turn, index: number): string {
 				const toolArgs = tc.arguments ?? '';
 				const toolMeta = `Round ${ri + 1}\nTool: ${toolName}\nID: ${tc.id}\nArguments: ${truncate(toolArgs, 100)}`;
 
-				html += `<div class="item msg-tool_call" title="${escapeHtml(toolMeta)}" onclick="openContent('Turn ${index + 1} Round ${ri + 1} — ${escapeHtml(toolName)}', ${escapeAttr(`# Tool Call: ${toolName}\n\n## Arguments\n${toolArgs}`)})">
+				html += `<div class="item msg-tool_call" title="${escapeHtml(toolMeta)}" onclick="openContent('Turn ${index + 1} Round ${ri + 1} — ${escapeHtml(toolName)}', ${escapeAttr(`# Tool Call: ${toolName}\n\n## Arguments\n\`\`\`json\n${toolArgs}\n\`\`\``)})">
 	<div class="item-header">
 		<span class="type-badge tool_call">tool</span>
 		<span class="name">${escapeHtml(toolName)}</span>
 		<span class="id">R${ri + 1}</span>
 	</div>
-	<div class="content">${escapeHtml(truncate(toolArgs, 120))}</div>
+	<div class="content">${jsonToYamlPreviewHtml(toolArgs)}</div>
 </div>`;
 			}
 		}
@@ -216,6 +240,68 @@ function renderTurn(turn: Turn, index: number): string {
 	return html;
 }
 
+function renderApiMessage(msg: Raw.ChatMessage, index: number): string {
+	const role = roleToString(msg.role);
+	const text = getTextPart(msg.content);
+	const name = msg.name ? ` (${msg.name})` : '';
+
+	// Build full content for click-to-open
+	let fullContent = `# Message ${index + 1}: ${role}${name}\n\n`;
+	fullContent += `## Content\n${text}\n`;
+
+	// Check for tool calls (assistant messages)
+	const toolCalls = 'toolCalls' in msg ? (msg as Raw.AssistantChatMessage).toolCalls : undefined;
+	if (toolCalls && toolCalls.length > 0) {
+		fullContent += `\n## Tool Calls\n`;
+		for (const tc of toolCalls) {
+			fullContent += `\n### ${tc.function.name}\n\`\`\`json\n${tc.function.arguments}\n\`\`\`\n`;
+		}
+	}
+
+	// Check for tool call ID (tool response messages)
+	const toolCallId = 'toolCallId' in msg ? (msg as Raw.ToolChatMessage).toolCallId : undefined;
+	if (toolCallId) {
+		fullContent += `\n## Tool Call ID\n${toolCallId}\n`;
+	}
+
+	// Build hover metadata
+	const metadata = [
+		`Message ${index + 1}`,
+		`Role: ${role}`,
+		name ? `Name: ${msg.name}` : '',
+		`Content parts: ${msg.content.length}`,
+		`Text length: ${text.length} chars`,
+		toolCalls ? `Tool calls: ${toolCalls.length}` : '',
+		toolCallId ? `Tool call ID: ${toolCallId}` : '',
+	].filter(Boolean).join('\n');
+
+	// Tool calls sub-items
+	let toolCallHtml = '';
+	if (toolCalls && toolCalls.length > 0) {
+		for (const tc of toolCalls) {
+			const tcMeta = `Tool: ${tc.function.name}\nID: ${tc.id}\nArgs length: ${tc.function.arguments.length}`;
+			toolCallHtml += `<div class="item msg-tool_call" title="${escapeHtml(tcMeta)}" onclick="openContent('${escapeHtml(tc.function.name)}', ${escapeAttr(`# Tool Call: ${tc.function.name}\n\nID: ${tc.id}\n\n## Arguments\n\`\`\`json\n${tc.function.arguments}\n\`\`\``)})">
+	<div class="item-header">
+		<span class="type-badge tool_call">call</span>
+		<span class="name">${escapeHtml(tc.function.name)}</span>
+	</div>
+	<div class="content">${jsonToYamlPreviewHtml(tc.function.arguments)}</div>
+</div>`;
+		}
+	}
+
+	return `<div class="item msg-${escapeHtml(role)}" title="${escapeHtml(metadata)}" onclick="openContent('Message ${index + 1} — ${escapeHtml(role)}', ${escapeAttr(fullContent)})">
+	<div class="item-header">
+		<span class="type-badge ${escapeHtml(role)}">${escapeHtml(role)}</span>
+		${msg.name ? `<span class="name">${escapeHtml(msg.name)}</span>` : ''}
+		<span class="id">#${index + 1}</span>
+		<span class="tokens">${text.length}c</span>
+	</div>
+	<div class="content">${highlightXmlTags(escapeHtml(truncate(text, 200)))}</div>
+</div>
+${toolCallHtml}`;
+}
+
 function statusToIcon(status: TurnStatus): string {
 	switch (status) {
 		case TurnStatus.InProgress: return '⏳';
@@ -242,6 +328,29 @@ function truncate(s: string, maxLen: number): string {
 		return s;
 	}
 	return s.slice(0, maxLen) + '…';
+}
+
+/** Returns already-escaped HTML with styled key/value spans for YAML-like preview. */
+function jsonToYamlPreviewHtml(jsonStr: string): string {
+	try {
+		const obj = JSON.parse(jsonStr);
+		if (typeof obj !== 'object' || obj === null) {
+			return escapeHtml(truncate(jsonStr, 120));
+		}
+		return Object.entries(obj).map(([k, v]) => {
+			const val = typeof v === 'string'
+				? (v.length > 80 ? v.slice(0, 80) + '…' : v)
+				: JSON.stringify(v);
+			return `<span class="kv-key">${escapeHtml(k)}</span><span class="kv-sep">:</span> ${escapeHtml(val)}`;
+		}).join('\n');
+	} catch {
+		return escapeHtml(truncate(jsonStr, 120));
+	}
+}
+
+/** After escapeHtml, highlights XML-like tags (&lt;tag&gt;) with a styled span. */
+function highlightXmlTags(escapedHtml: string): string {
+	return escapedHtml.replace(/&lt;(\/?[\w-]+)&gt;/g, '<span class="xml-tag">&lt;$1&gt;</span>');
 }
 
 function escapeHtml(s: string): string {
@@ -342,6 +451,8 @@ body {
 .type-badge.user { background: #264f78; }
 .type-badge.assistant { background: #4e3a22; }
 .type-badge.model { background: #4e3a22; }
+.type-badge.system { background: #444; }
+.type-badge.tool { background: #22404a; }
 .type-badge.tool_call { background: #2d4a22; }
 .type-badge.tool_result { background: #22404a; }
 .type-badge.follow-up { background: #4a2244; }
@@ -359,6 +470,16 @@ body {
 	opacity: 0.85;
 	max-height: 80px;
 	overflow: hidden;
+}
+.content .kv-key {
+	opacity: 0.5;
+}
+.content .kv-sep {
+	opacity: 0.5;
+}
+.content .xml-tag {
+	opacity: 0.5;
+
 }
 .empty {
 	padding: 24px;

@@ -91,7 +91,7 @@ The context window status hover uses `computePromptTokenDetails()` from `src/pla
 - [x] Register contribution in `contributions.ts`
 - [x] Render User View column from `IConversationStore.lastConversation`
 - [x] Style with VS Code theme variables (using backup branch's CSS as reference)
-- [ ] Auto-refresh on conversation change
+- [ ] Auto-refresh on conversation change (see Bug #1)
 
 #### Key Files for Phase 1
 
@@ -106,9 +106,11 @@ The context window status hover uses `computePromptTokenDetails()` from `src/pla
 
 ### Phase 2: API View
 
-- [ ] Subscribe to `onDidBuildPrompt` events to capture `Raw.ChatMessage[]`
-- [ ] Render API View column alongside User View
-- [ ] Show role, content preview, tool calls for each message
+- [x] Capture API messages via `IRequestLogger.getRequests()` (uses `Raw.ChatMessage[]` from logged requests)
+- [ ] Auto-refresh via `IRequestLogger.onDidChangeRequests` event (see Bug #1 — deferred)
+- [x] Render API View column alongside User View
+- [x] Show role, content preview, tool calls for each message
+- [x] Styled YAML key-value previews and XML tag highlighting
 - [ ] Show token counts per message and total
 
 #### Key Files for Phase 2
@@ -215,6 +217,20 @@ Lifted from backup branch — a command palette command `Chat: Select Model` (`g
 - **Discovery:** `IToolCall` has `name`, `arguments`, `id` — not `input`/`result` as assumed. Tool results are in `round.response`.
 - **Note:** `IConversationStore` has no change event — currently using manual refresh + visibility change. Will need a better auto-refresh mechanism.
 
+### 2026-03-16 — Phase 2 API View
+
+- **Design decision:** Instead of subscribing directly to `ToolCallingLoop.onDidBuildPrompt` (which requires access to per-request loop instances), we use `IRequestLogger` which already captures `Raw.ChatMessage[]` for every API request. Same data, simpler wiring.
+- `IRequestLogger.getRequests()` returns all logged info; we find the latest `ILoggedRequestInfo` with `chatParams.messages`.
+- `IRequestLogger.onDidChangeRequests` fires whenever a new request is logged — we auto-refresh the panel when visible.
+- Used `roleToString()` and `getTextPart()` from `globalStringUtils.ts` instead of reimplementing.
+- **Discovery:** `LoggedRequest` is a union type — `IMarkdownContentRequest` doesn't have `chatParams`. Used `'chatParams' in entry` narrowing.
+
+### 2026-03-16 — Phase 2 refinements
+
+- Added `jsonToYamlPreviewHtml()` — returns pre-escaped HTML with styled `<span class="kv-key">` for keys and `<span class="kv-sep">` for colons. YAML-like previews are now visually distinct from plain text.
+- Added `highlightXmlTags()` — wraps `<tag>` patterns in `<span class="xml-tag">` with green/dimmed styling. Applied to API View content text.
+- Attempted auto-refresh via `onDidChangeRequests` and `onDidChangeActiveChatPanelSessionResource` — neither worked as expected. Removed both; logged as Bug #1 for post-Phase-2 fix.
+
 ## Checklist
 
 - [ ] Compiles without errors
@@ -228,6 +244,7 @@ Lifted from backup branch — a command palette command `Chat: Select Model` (`g
 
 | # | Description | Status | Resolution |
 |---|-------------|--------|------------|
+| 1 | Auto-refresh not working. Tried `IRequestLogger.onDidChangeRequests` and `vscode.window.onDidChangeActiveChatPanelSessionResource` (proposed API) — neither fires as expected. Panel only updates via manual refresh button or visibility change. | Open — scheduled post-Phase 2 | Investigate: may need to hook into `ToolCallingLoop.onDidBuildPrompt` per-request, or use `IConversationStore` polling. The proposed API may require `chatParticipantPrivate` to actually be enabled at runtime. |
 
 ## Devlog
 
